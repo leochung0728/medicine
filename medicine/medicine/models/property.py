@@ -1,4 +1,5 @@
-from medicine import db
+from medicine.flask_app import db
+
 
 class Property(db.Model):  # 性
     __tablename__ = 'property'

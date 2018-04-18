@@ -13,4 +13,4 @@ if __name__ == '__main__':
     if database not in existing_databases:
         engine.execute(config.DB_Query['create_db'])
         print("Created database {}".format(database))
-        db.create_all()
+    db.create_all()

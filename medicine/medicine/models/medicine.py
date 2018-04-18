@@ -1,4 +1,4 @@
-from .tools.session import session_scope
+from medicine.models.tools.session import session_scope
 from medicine.flask_app import db
 from  medicine.models import alias, property, compound
 from medicine.models.medicine_compound import medicine_compound

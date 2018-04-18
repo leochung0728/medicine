@@ -14,3 +14,5 @@ migrate = Migrate(app, db, directory=config.Path['MIGRATION_DIR'])
 
 manager = Manager(app)
 manager.add_command('db', MigrateCommand)
+
+from medicine.models import medicine, alias, compound, medicine_compound, property
