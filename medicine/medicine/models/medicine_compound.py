@@ -1,4 +1,4 @@
-from medicine import db
+from medicine.flask_app import db
 # from medicine.models import medicine, compound
 
 medicine_compound = db.Table('medicine_compound',

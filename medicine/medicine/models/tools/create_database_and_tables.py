@@ -1,5 +1,5 @@
 from sqlalchemy import create_engine
-from medicine import db
+from medicine.flask_app import db
 from medicine import config
 from medicine.models import medicine, alias, compound, medicine_compound, property
 

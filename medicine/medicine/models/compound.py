@@ -1,4 +1,4 @@
-from medicine import db
+from medicine.flask_app import db
 from medicine.models import medicine
 from medicine.models.medicine_compound import medicine_compound
 

@@ -1,4 +1,4 @@
-from medicine import db
+from medicine.flask_app import db
 from contextlib import contextmanager
 
 

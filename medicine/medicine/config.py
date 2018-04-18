@@ -17,5 +17,6 @@ DB_Query = {
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 
 Path = {
+    'MIGRATION_DIR': os.path.join(ROOT_DIR, 'migrations'),
     'data_dir': os.path.join(ROOT_DIR, 'data'),
 }

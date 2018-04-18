@@ -1,5 +1,5 @@
 import os
-from medicine import db
+from medicine.flask_app import db
 from medicine.models.medicine import Medicine
 from medicine.models.alias import Alias
 from medicine import config
