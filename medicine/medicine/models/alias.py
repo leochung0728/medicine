@@ -9,11 +9,13 @@ class Alias(db.Model):  # 別名
     medicine_id = db.Column(db.Integer, db.ForeignKey('medicine.id'), nullable=False)
 
     @staticmethod
-    def get(name, medicine_id):
-        a = Alias.query.filter_by(name=name, medicine_id=medicine_id).first()
-        if a is None:
-            a = Alias(name=name, medicine_id=medicine_id)
-        return a
+    def get(name, medicine_id=None):
+        alias =None
+        if medicine_id is None:
+            alias = Alias.query.filter_by(name=name).first()
+        else:
+            alias = Alias.query.filter_by(name=name, medicine_id=medicine_id).first()
+        return alias
 
     def __repr__(self):
         return "Alias(%r)" % self.name
