@@ -1,8 +1,12 @@
 import os
+import re
+import pandas as pd
+from collections import OrderedDict
+from medicine import config
 from medicine.flask_app import db
 from medicine.models.medicine import Medicine
 from medicine.models.alias import Alias
-from medicine import config
+from medicine.models.property import Property
 
 File_Dir = config.Path['data_dir']
 File_Name = '本草纲目(簡體).txt'
@@ -20,10 +24,7 @@ class DataProcess(object):
             for line in file:
                 self.content += line
 
-    def process_data(self):
-        import re
-        import pandas as pd
-
+    def process_data_by_medicine_and_alias(self):
         pattern = re.compile('<目录>(.*?)<篇名>(.*?)内容：(.*?)(?=<目录>|(?<=.$))', re.S)
         results = pattern.findall(self.content)
         data_df = pd.DataFrame(columns=['directory', 'title', 'content'])
@@ -91,12 +92,154 @@ class DataProcess(object):
                     db.session.add(alias)
             db.session.commit()
 
+    def process_data_by_property(self):
+        file_path = os.path.join(config.Path['data_dir'], '本草纲目(簡體)_Ver2.csv')
+        data = pd.read_csv(file_path, index_col=[0], engine='python', encoding='utf-8-sig')
+        pattern = '.*?[。；]|.*'
+        property_keys = ['cold', 'cool', 'warm', 'hot',
+                         'neutral', 'sour', 'sweet', 'bitter',
+                         'salty', 'pungent', 'poison']
+        medicine_dict = OrderedDict()
+        medicine_temp = None
+        for index, row in data.iterrows():
+            property_dict = dict.fromkeys(property_keys, 0)
+            title = re.sub('\s', '', row['篇名'])
+            position = re.sub('\s', '', row['部位']) if not pd.isnull(row['部位']) else ''
+            content = re.sub('\s', '', row['氣味']) if not pd.isnull(row['氣味']) else ''
+
+            m = Medicine.query.filter_by(name=title).first()
+
+            if medicine_temp != m.name:
+                medicine_temp = m.name
+                medicine_dict = OrderedDict()
+
+            match = re.match(pattern, content)
+            if match:
+                content = match.group()
+
+            if re.search('同', content):
+                something = ''
+                if re.search('(?:同([^。]))|(?:(.)同)', content):
+                    for search in re.search('(?:同([^。]))|(?:(.)同)', content).groups():
+                        if search is not None:
+                            something = search
+                            break
+
+                if something == '' and len(medicine_dict) > 0:
+                    first_key = list(medicine_dict.items())[0][0]
+                    medicine_dict[position] = medicine_dict[first_key]
+
+                elif len(medicine_dict) > 0:
+                    match_success = False
+                    for item in medicine_dict.keys():
+                        if re.search(something, item):
+                            match_success = True
+                            property_dict = medicine_dict[item]
+                            break
+                    if match_success == False:
+                        property_dict = list(medicine_dict.items())[len(medicine_dict) - 1][1]
+
+            if re.search('热', content):
+                text = re.search('(大热)|(熟热)|(热)|(微热)', content).group()
+                if text == '大热':
+                    property_dict['hot'] = 3
+                elif text == '熟热' or text == '热':
+                    property_dict['hot'] = 2
+                elif text == '微热':
+                    property_dict['hot'] = 1
+
+            if re.search('温', content):
+                text = re.search('(大温)|(温)|(小温)|(微温)', content).group()
+                if text == '大温':
+                    property_dict['warm'] = 3
+                elif text == '温':
+                    property_dict['warm'] = 2
+                elif text == '小温' or text == '微温':
+                    property_dict['warm'] = 1
+
+            if re.search('冷|凉', content):
+                text = re.search('(冷利)|(至冷)|(冷)|(小冷)|(凉)', content).group()
+                if text == '冷利' or text == '至冷':
+                    property_dict['cool'] = 3
+                elif text == '冷' or text == '凉':
+                    property_dict['cool'] = 2
+                elif text == '小冷':
+                    property_dict['cool'] = 1
+
+            if re.search('寒', content):
+                text = re.search('(大寒)|(寒)|(小寒)|(微寒)', content).group()
+                if text == '大寒':
+                    property_dict['cold'] = 3
+                elif text == '寒':
+                    property_dict['cold'] = 2
+                elif text == '小寒' or text == '微寒':
+                    property_dict['cold'] = 1
+
+            if re.search('平', content):
+                property_dict['neutral'] = 2
+
+            if re.search('酸', content):
+                text = re.search('(并酸)|(酸)|(微酸)', content).group()
+                if text == '并酸':
+                    property_dict['sour'] = 3
+                elif text == '酸':
+                    property_dict['sour'] = 2
+                elif text == '微酸':
+                    property_dict['sour'] = 1
+
+            if re.search('甘', content):
+                text = re.search('(并甘)|(甘)|(微甘)', content).group()
+                if text == '并甘':
+                    property_dict['sweet'] = 3
+                elif text == '甘':
+                    property_dict['sweet'] = 3
+                elif text == '微甘':
+                    property_dict['sweet'] = 3
+
+            if re.search('苦', content):
+                text = re.search('(苦)|(微苦)|(小苦)', content).group()
+                if text == '苦':
+                    property_dict['bitter'] = 2
+                elif text == '微苦' or text == '小苦':
+                    property_dict['bitter'] = 1
+
+            if re.search('咸', content):
+                text = re.search('(咸)|(微咸)', content).group()
+                if text == '咸':
+                    property_dict['salty'] = 2
+                elif text == '微咸':
+                    property_dict['salty'] = 1
+
+            if re.search('辛', content):
+                text = re.search('(辛美)|(辛)|(微辛)', content).group()
+                if text == '辛美' or text == '辛':
+                    property_dict['pungent'] = 2
+                elif text == '微辛':
+                    property_dict['pungent'] = 1
+
+            if re.search('毒', content):
+                text = re.search('(大毒)|(大有毒)|(有毒)|(微毒)|(小毒)|(无毒)', content).group()
+                if text == '大毒' or text == '大有毒':
+                    property_dict['poison'] = 3
+                elif text == '有毒':
+                    property_dict['poison'] = 2
+                elif text == '微毒' or text == '小毒':
+                    property_dict['poison'] = 1
+
+            medicine_dict[position] = property_dict
+            property = Property.get(position, medicine_id=m.id)
+            if property is None:
+                property = Property(position=position, medicine_id=m.id, **property_dict)
+            db.session.add(property)
+            db.session.commit()
+
 
 if __name__ == '__main__':
     # pass
     dp = DataProcess()
-    dp.read_file()
-    dp.process_data()
+    # dp.read_file()
+    # dp.process_data_by_medicine_and_alias()
+    dp.process_data_by_property()
 
     # me = Medicine.query.filter_by(id=4).first()
     # print(me.alias)
