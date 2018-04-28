@@ -16,48 +16,185 @@ class DataProcess(object):
     def __init__(self, file_dir=File_Dir, file_name=File_Name):
         self.file_dir = file_dir
         self.file_name = file_name
-        self.content = ''
 
-    def read_file(self):
-        self.content = ''
-        with open(os.path.join(self.file_dir, self.file_name), 'r', encoding='utf8') as file:
+    def read_txt_file(self, file_dir=None, file_name=None):
+        content = ''
+        if file_dir is None: file_dir = self.file_dir
+        if file_name is None: file_name = self.file_name
+
+        with open(os.path.join(file_dir, file_name), 'r', encoding='utf8') as file:
             for line in file:
-                self.content += line
+                content += line
+        return content
 
-    def process_data_by_medicine_and_alias(self):
+    def create_datas(self):
+        # 本草纲目(簡體).csv [將 本草纲目(簡體).txt 結構化]
+        content = self.read_txt_file()
         pattern = re.compile('<目录>(.*?)<篇名>(.*?)内容：(.*?)(?=<目录>|(?<=.$))', re.S)
-        results = pattern.findall(self.content)
-        data_df = pd.DataFrame(columns=['directory', 'title', 'content'])
-        for index in range(len(results)):
-            data_df.loc[index] = [re.sub('\n', '', text) for text in results[index]]
+        m = pattern.findall(content)
+        df = pd.DataFrame(columns=['directory', 'title', 'content'])
+        for i in range(len(m)):
+            # df.loc[i] = [re.sub('\n', '', text) for text in m[i]]
+            df.loc[i] = [text for text in m[i]]  # 不取代換行，保持原始狀態以利正則表示法進行
+        df.to_csv(os.path.join(config.Path['data_dir'], '本草纲目(簡體).csv'), encoding='utf-8-sig')
 
-        for index, row in data_df.iterrows():
+        # 本草纲目(簡體)_Ver1.csv [修正 本草纲目(簡體).csv 括號不完整等問題]
+        for index, row in df.iterrows():
             if pd.isnull(row['directory']):
                 continue
-
             if re.search(r'\w+[部|目]第\w+卷\\\w{1,2}之\w+', row['directory']):
                 row['content'] = re.sub(r'【 【主治】', '【主治】', row['content'])
                 row['content'] = re.sub(r'主治 【附方', '主治】 【附方', row['content'])
                 row['content'] = re.sub(r'附方 吐血', '附方】 吐血', row['content'])
                 row['content'] = re.sub(r'【别名】', '【释名】', row['content'])
                 row['content'] = re.sub(r'【主冶】', '【主治】', row['content'])
+        df.to_csv(os.path.join(config.Path['data_dir'], '本草纲目(簡體)_Ver1.csv'), encoding='utf-8-sig')
 
-        for index, row in data_df.iterrows():
+        # 本草纲目(簡體)_Ver2.csv [本草纲目(簡體)_Ver1.csv]
+        data = pd.DataFrame(columns=['目錄', '篇名', '釋名', '內容', '部位', '部位內容', '主治', '氣味', '附方'])
+        for index, row in df.iterrows():
             if pd.isnull(row['directory']):
                 continue
-
             if not re.search(r'\w+[部|目]第\w+卷\\\w{1,2}之\w+', row['directory']):
                 continue
+            data_row = dict((k, '') for k in data.columns)
+            data_row['目錄'] = row['directory']
+            data_row['篇名'] = row['title']
+            data_row['內容'] = row['content']
+            if re.search(r'【释名】(.*?)(?=【|(?<=.$))', data_row['內容'], re.S):
+                data_row['釋名'] = re.search(r'【释名】(.*?)(?=【|(?<=.$))', data_row['內容'], re.S).group(1)
+            sites = re.findall(r'(\\x.+?\\x.*?)(?=\\x|<目录>|(?<=.$))', data_row['內容'], re.S)
+            sites = sites if sites else [data_row['內容']]
+            for s_content in sites:
+                data_row['部位內容'] = s_content
+                if re.search(r'\\x(.+?)\\x', s_content, re.S):
+                    data_row['部位'] = re.search(r'\\x(.+?)\\x', s_content, re.S).group(1)
+                if re.search(r'【主治】(.*?)(?=【|(?<=.$))', s_content, re.S):
+                    data_row['主治'] = re.search(r'【主治】(.*?)(?=【|(?<=.$))', s_content, re.S).group(1)
+                if re.search(r'【气味】(.*?)(?=【|(?<=.$))', s_content, re.S):
+                    data_row['氣味'] = re.search(r'【气味】(.*?)(?=【|(?<=.$))', s_content, re.S).group(1)
+                if re.search(r'【附方】(.*?)(?=【|(?<=.$))', s_content, re.S):
+                    data_row['附方'] = re.search(r'【附方】(.*?)(?=【|(?<=.$))', s_content, re.S).group(1)
+                data = data.append(data_row, ignore_index=True)
+        data.to_csv(os.path.join(config.Path['data_dir'], '本草纲目(簡體)_Ver2.csv'), encoding='utf-8-sig')
 
-            medicine = Medicine.get(row['title'])
-            if re.match(r'(.*)[部|目]', row['directory']):
-                medicine.radical = re.match(r'(.*)[部|目]', row['directory']).group(1)
+        # 本草纲目(簡體)_Ver3.csv [結構化 附方 與 附方內容]
+        # Make compound's name
+        compounds = data.loc[:, '附方']
+        # pattern = r'[。）》]{1,3}( ?\w{0,3} ?\n? ?\w{0,8}?[ ，、]{0,2}\w{1,11})∶'
+        # pattern = r'[。）》]{1,3}( ?\w{0,3} ?\n? ?\w{0,8}?[ ，、]{0,2}\w{1,11})∶'
+        # pattern = r'[。）》]{1,3}((?: ?\w{1,20}[，、]?\n?)?\
+        # (?:(?:\w+[，、]?){0,2}\n?){0,3}\w{1,11})∶'
+        # pattern = r'[。）》]{1,3}((?: ?\w{1,20}[ ，、]?\n?)?\
+        # (?:(?:\w+[，、]){0,2} ?\n?){0,3}\w{1,11})∶'
+        pattern = r'[。）》]((?: ?\w{0,10}[ ，、]?\n?){0,1}' \
+                  r'(?: ?\w{0,2}[，、] \n){0,2}' \
+                  r'(?:(?:\w+[，、]){1,3} ?\n?){0,3}\w{1,11})∶'
+
+        name_list = []
+        for compound in compounds:
+            if pd.isnull(compound):
+                continue
+            finds = re.findall(pattern, compound)
+            if len(finds) > 0:
+                finds = [re.sub(r'\s', '', find) for find in finds]
+                name_list.extend(finds)
+
+        d_len, u_len = 2, 35  # 控制附方名稱長度
+        name_list = [name for name in name_list if d_len <= len(name) <= u_len]
+
+        compound_df = pd.DataFrame(columns=['title', 'compound', 'content', 'content_c'])
+        compound_join = '|'.join(name_list)
+        pattern = '(' + compound_join + ')∶' + '(.*?)' + '(?=(?=(?:' + compound_join + ')∶)|(?<=.$))'
+
+        previous_title = None
+        for index, row in data.iterrows():
+            title = row['篇名']
+            compound = row['附方']
+            if title == previous_title or pd.isnull(compound):
+                continue
+            else:
+                previous_title = title
+            finds = re.findall(pattern, re.sub('\s', '', compound))
+            if len(finds) == 0:
+                continue
+            for find in finds:
+                df_row = dict((k, '') for k in compound_df.columns)
+                df_row['title'] = title
+                df_row['compound'] = find[0]
+                df_row['content'] = find[1]
+                df_row['content_c'] = compound
+                compound_df = compound_df.append(df_row, ignore_index=True)
+        file_path = os.path.join(config.Path['data_dir'], '本草纲目(簡體)_Ver3.csv')
+        compound_df.to_csv(file_path, encoding='utf-8-sig')
+
+        # 本草纲目(簡體)_Ver4.csv [結構化 附方 與 附方內容]
+        from medicine.models.medicine import Medicine
+        from medicine.models.alias import Alias
+
+        medicine_all = Medicine.query.all()
+        alias_all = Alias.query.all()
+
+        medicine_names = set([medicine.name for medicine in medicine_all if len(medicine.name) > 1])
+        alias_names = set([alias.name for alias in alias_all if len(alias.name) > 1])
+        join_mName = '|'.join(medicine_names)
+        join_aName = '|'.join(alias_names)
+
+        df = pd.DataFrame(columns=['title', 'compound', 'content_c', 'content', 'medicines'])
+        for index, row in compound_df.iterrows():
+            if pd.isnull(row['content']):
+                continue
+            content = re.sub('\s', '', row['content'])
+            # Match（夏子益《奇疾方》）、（《千金方》）、（陈巽方）... and Clean
+            match = re.search('（\w{0,3}《?\w{2,8}》?）|《\w{2,8}》', content)
+            if match:
+                content = re.sub('（\w{0,3}《?\w{2,8}》?）|《\w{2,8}》', '', row['content'])
+
+            mFinds = re.findall('(' + join_mName + ')', content)
+            aFinds = re.findall('(' + join_aName + ')', content)
+            finds = list()
+            medicine = Medicine.get(name=re.sub('\s', '', row['title']))
+            finds.append(medicine.name)
+            finds.extend(mFinds)
+            for aFind in aFinds:
+                alias = Alias.get(name=aFind)
+                medicine = Medicine.query.get(alias.medicine_id)
+                # finds.append(medicine.name)
+            # print(set(finds))
+            df_row = dict((k, '') for k in df.columns)
+            df_row['title'] = re.sub('\s', '', row['title'])
+            df_row['compound'] = row['compound']
+            df_row['content_c'] = re.sub('\s', '', row['content_c'])
+            df_row['content'] = row['content']
+            df_row['medicines'] = '、'.join(set(finds))
+            df = df.append(df_row, ignore_index=True)
+        file_path = os.path.join(config.Path['data_dir'], '本草纲目(簡體)_Ver4.csv')
+        df.to_csv(file_path, encoding='utf-8-sig')
+
+    def process_data(self):
+        self.process_data_by_medicine_and_alias()
+        self.process_data_by_property()
+
+    def process_data_by_medicine_and_alias(self):
+        file_path = os.path.join(config.Path['data_dir'], '本草纲目(簡體)_Ver2.csv')
+        data_df = pd.read_csv(file_path, index_col=[0], engine='python', encoding='utf-8-sig')
+
+        for index, row in data_df.iterrows():
+            if pd.isnull(row['目錄']):
+                continue
+
+            if not re.search(r'\w+[部|目]第\w+卷\\\w{1,2}之\w+', row['目錄']):
+                continue
+
+            medicine = Medicine.get(row['篇名'])
+            if re.match(r'(.*)[部|目]', row['目錄']):
+                medicine.radical = re.match(r'(.*)[部|目]', row['目錄']).group(1)
             db.session.add(medicine)
             db.session.commit()
 
             alias_content = ''
-            if re.search(r'【释名】(.*?)(?=【|(?<=.$))', row['content'], re.S):
-                alias_content = re.search(r'【释名】(.*?)(?=【|(?<=.$))', row['content'], re.S).group(1)
+            if re.search(r'【释名】(.*?)(?=【|(?<=.$))', row['內容'], re.S):
+                alias_content = re.search(r'【释名】(.*?)(?=【|(?<=.$))', row['內容'], re.S).group(1)
 
             # 別名沒有內容，跳過
             if pd.isnull(alias_content):
@@ -235,15 +372,11 @@ class DataProcess(object):
 
 
 if __name__ == '__main__':
-    # pass
     dp = DataProcess()
-    # dp.read_file()
-    # dp.process_data_by_medicine_and_alias()
-    dp.process_data_by_property()
+    # # dp.create_datas()  # 將資料進行結構化 (僅第一次需要執行)
+    # dp.process_data()
 
-    # me = Medicine.query.filter_by(id=4).first()
-    # print(me.alias)
-
+    ######## [ 測試 ] ########
     # step 1 (本草纲目(簡體)_Ver1.csv)
     # import re
     # import pandas as pd
@@ -378,7 +511,15 @@ if __name__ == '__main__':
     #
     # # Make compound's name
     # compounds = data.loc[:, '附方']
-    # pattern = r'[。）》]{1,3}( ?\w{0,3} ?\n? ?\w{0,8}?[ ，、]{0,2}\w{1,11})∶'
+    # # pattern = r'[。）》]{1,3}( ?\w{0,3} ?\n? ?\w{0,8}?[ ，、]{0,2}\w{1,11})∶'
+    # # pattern = r'[。）》]{1,3}( ?\w{0,3} ?\n? ?\w{0,8}?[ ，、]{0,2}\w{1,11})∶'
+    # # pattern = r'[。）》]{1,3}((?: ?\w{1,20}[，、]?\n?)?\
+    # # (?:(?:\w+[，、]?){0,2}\n?){0,3}\w{1,11})∶'
+    # # pattern = r'[。）》]{1,3}((?: ?\w{1,20}[ ，、]?\n?)?\
+    # # (?:(?:\w+[，、]){0,2} ?\n?){0,3}\w{1,11})∶'
+    # pattern = r'[。）》]((?: ?\w{0,10}[ ，、]?\n?){0,1}' \
+    #           r'(?: ?\w{0,2}[，、] \n){0,2}' \
+    #           r'(?:(?:\w+[，、]){1,3} ?\n?){0,3}\w{1,11})∶'
     #
     # name_list = []
     # for compound in compounds:
@@ -389,10 +530,10 @@ if __name__ == '__main__':
     #         finds = [re.sub(r'\s', '', find) for find in finds]
     #         name_list.extend(finds)
     #
-    # d_len, u_len = 2, 14
+    # d_len, u_len = 2, 35
     # name_list = [name for name in name_list if d_len <= len(name) <= u_len]
     #
-    # compound_df = pd.DataFrame(columns=['title', 'compound', 'content'])
+    # compound_df = pd.DataFrame(columns=['title', 'compound', 'content', 'content_c'])
     # compound_join = '|'.join(name_list)
     # pattern = '(' + compound_join + ')∶' + '(.*?)' + '(?=(?=(?:' + compound_join + ')∶)|(?<=.$))'
     #
@@ -412,6 +553,7 @@ if __name__ == '__main__':
     #         df_row['title'] = title
     #         df_row['compound'] = find[0]
     #         df_row['content'] = find[1]
+    #         df_row['content_c'] = compound
     #         compound_df = compound_df.append(df_row, ignore_index=True)
     # file_path = os.path.join(config.Path['data_dir'], '本草纲目(簡體)_Ver3.csv')
     # compound_df.to_csv(file_path, encoding='utf-8-sig')
@@ -432,7 +574,7 @@ if __name__ == '__main__':
     #
     # file_path = os.path.join(config.Path['data_dir'], '本草纲目(簡體)_Ver3.csv')
     # compound_df = pd.read_csv(file_path, index_col=[0], engine='python', encoding='utf-8-sig')
-    # new_df = pd.DataFrame(columns=['title', 'compound', 'content', 'medicines'])
+    # new_df = pd.DataFrame(columns=['title', 'compound', 'content_c', 'content', 'medicines'])
     # for index, row in compound_df.iterrows():
     #     if pd.isnull(row['content']):
     #         continue
@@ -456,6 +598,7 @@ if __name__ == '__main__':
     #     df_row = dict((k, '') for k in new_df.columns)
     #     df_row['title'] = re.sub('\s', '', row['title'])
     #     df_row['compound'] = row['compound']
+    #     df_row['content_c'] = row['content_c']
     #     df_row['content'] = row['content']
     #     df_row['medicines'] = '、'.join(set(finds))
     #     new_df = new_df.append(df_row, ignore_index=True)
