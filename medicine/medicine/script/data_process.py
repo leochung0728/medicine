@@ -186,7 +186,7 @@ class DataProcess(object):
             if not re.search(r'\w+[部|目]第\w+卷\\\w{1,2}之\w+', row['目錄']):
                 continue
 
-            medicine = Medicine.get(row['篇名'])
+            medicine = Medicine.get(re.sub('\s', '', row['篇名']))
             if re.match(r'(.*)[部|目]', row['目錄']):
                 medicine.radical = re.match(r'(.*)[部|目]', row['目錄']).group(1)
             db.session.add(medicine)
@@ -373,8 +373,8 @@ class DataProcess(object):
 
 if __name__ == '__main__':
     dp = DataProcess()
-    # # dp.create_datas()  # 將資料進行結構化 (僅第一次需要執行)
-    # dp.process_data()
+    # dp.create_datas()  # 將資料進行結構化 (僅第一次需要執行)
+    dp.process_data()
 
     ######## [ 測試 ] ########
     # step 1 (本草纲目(簡體)_Ver1.csv)
