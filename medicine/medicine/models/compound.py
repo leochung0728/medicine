@@ -13,3 +13,6 @@ class Compound(db.Model):  # 複方
                                secondary=medicine_compound,
                                backref='compound',
                                cascade='all')
+
+    def __repr__(self):
+        return "Compound(%r)" % self.name
