@@ -411,7 +411,7 @@ class DataProcess(object):
                 medicine = Medicine.query.get(alias.medicine_id)
                 find_medicines.append(medicine)
             if re.search('(又法)|(又一法)|(又方)|(又散)|(一法)|(一方)', row['compound']):
-                if last_compound is not None
+                if last_compound is not None:
                     row['compound'] = last_compound
             else:
                 last_compound = row['compound']
