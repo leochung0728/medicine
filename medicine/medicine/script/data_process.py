@@ -7,6 +7,8 @@ from medicine.flask_app import db
 from medicine.models.medicine import Medicine
 from medicine.models.alias import Alias
 from medicine.models.property import Property
+from medicine.models.compound import Compound
+from medicine.models.medicine_compound import medicine_compound
 
 File_Dir = config.Path['data_dir']
 File_Name = '本草纲目(簡體).txt'
@@ -174,8 +176,10 @@ class DataProcess(object):
     def process_data(self):
         self.process_data_by_medicine_and_alias()
         self.process_data_by_property()
+        self.process_data_by_compound()
 
-    def process_data_by_medicine_and_alias(self):
+    @staticmethod
+    def process_data_by_medicine_and_alias():
         file_path = os.path.join(config.Path['data_dir'], '本草纲目(簡體)_Ver2.csv')
         data_df = pd.read_csv(file_path, index_col=[0], engine='python', encoding='utf-8-sig')
 
@@ -229,7 +233,8 @@ class DataProcess(object):
                     db.session.add(alias)
             db.session.commit()
 
-    def process_data_by_property(self):
+    @staticmethod
+    def process_data_by_property():
         file_path = os.path.join(config.Path['data_dir'], '本草纲目(簡體)_Ver2.csv')
         data = pd.read_csv(file_path, index_col=[0], engine='python', encoding='utf-8-sig')
         pattern = '.*?[。；]|.*'
@@ -273,7 +278,7 @@ class DataProcess(object):
                             match_success = True
                             property_dict = medicine_dict[item]
                             break
-                    if match_success == False:
+                    if not match_success:
                         property_dict = list(medicine_dict.items())[len(medicine_dict) - 1][1]
 
             if re.search('热', content):
@@ -369,6 +374,51 @@ class DataProcess(object):
                 property = Property(position=position, medicine_id=m.id, **property_dict)
             db.session.add(property)
             db.session.commit()
+
+    @staticmethod
+    def process_data_by_compound():
+        file_path = os.path.join(config.Path['data_dir'], '本草纲目(簡體)_Ver3.csv')
+        data = pd.read_csv(file_path, index_col=[0], engine='python', encoding='utf-8-sig')
+
+        medicine_all = Medicine.query.all()
+        alias_all = Alias.query.all()
+
+        medicine_names = set([medicine.name for medicine in medicine_all if len(medicine.name) > 1])
+        alias_names = set([alias.name for alias in alias_all if len(alias.name) > 1])
+        join_mName = '|'.join(medicine_names)
+        join_aName = '|'.join(alias_names)
+        last_compound = None
+        medicine_temp = None
+        for index, row in data.iterrows():
+            if pd.isnull(row['content']):
+                continue
+            if medicine_temp != row['title']:
+                medicine_temp = row['title']
+                last_compound = None
+            content = re.sub('\s', '', row['content'])
+            # Match（夏子益《奇疾方》）、（《千金方》）、（陈巽方）... and Clean
+            match = re.search('（\w{0,3}《?\w{2,8}》?）|《\w{2,8}》', content)
+            if match:
+                content = re.sub('（\w{0,3}《?\w{2,8}》?）|《\w{2,8}》', '', content)
+            mFinds = re.findall('(' + join_mName + ')', content)
+            aFinds = re.findall('(' + join_aName + ')', content)
+            find_medicines = list()
+            medicine = Medicine.get(name=re.sub('\s', '', row['title']))
+            find_medicines.append(medicine)
+            find_medicines.extend([Medicine.get(name=m) for m in mFinds])
+            for aFind in aFinds:
+                alias = Alias.get(name=aFind)
+                medicine = Medicine.query.get(alias.medicine_id)
+                find_medicines.append(medicine)
+            if re.search('(又法)|(又一法)|(又方)|(又散)|(一法)|(一方)', row['compound']) and last_compound is not None:
+                row['compound'] = last_compound
+            else:
+                last_compound = row['compound']
+
+            compound = Compound(name=row['compound'], description=row['content'])
+            compound.medicine.extend(set(find_medicines))
+            db.session.add(compound)
+        db.session.commit()
 
 
 if __name__ == '__main__':
