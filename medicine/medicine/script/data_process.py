@@ -416,7 +416,7 @@ class DataProcess(object):
             else:
                 last_compound = row['compound']
 
-            compound = Compound(name=row['compound'], description=row['content'])
+            compound = Compound(name=row['compound'], description=row['content'], source=medicine.name)
             compound.medicine.extend(set(find_medicines))
             db.session.add(compound)
         db.session.commit()

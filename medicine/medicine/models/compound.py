@@ -9,6 +9,7 @@ class Compound(db.Model):  # 複方
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(50))
     description = db.Column(db.String(1000))
+    source = db.Column(db.String(20))
     medicine = db.relationship('Medicine',
                                secondary=medicine_compound,
                                backref='compound',
