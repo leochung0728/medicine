@@ -1,7 +1,7 @@
 from medicine.models.tools.session import session_scope
 from medicine.flask_app import db
 from  medicine.models import alias, property, compound
-from medicine.models.medicine_compound import medicine_compound
+# from medicine.models.medicine_compound import medicine_compound
 
 
 class Medicine(db.Model):  # 中藥
@@ -12,10 +12,10 @@ class Medicine(db.Model):  # 中藥
     radical = db.Column(db.String(20))
     alias = db.relationship('Alias', backref='medicine', cascade='all, delete-orphan')
     property = db.relationship('Property', backref='medicine', cascade='all, delete-orphan')
-    compound = db.relationship('Compound',
-                               secondary=medicine_compound,
-                               backref='medicine',
-                               cascade='all')
+    # compound = db.relationship('Compound',
+    #                            secondary=medicine_compound,
+    #                            backref='medicine',
+    #                            cascade='all')
 
     def __init__(self, name, radical='', alias=[], property=[], compound=[]):
         self.name = name

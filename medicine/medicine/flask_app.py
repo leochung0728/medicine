@@ -16,3 +16,4 @@ manager = Manager(app)
 manager.add_command('db', MigrateCommand)
 
 from medicine.models import medicine, alias, compound, medicine_compound, property
+import medicine.views.index
