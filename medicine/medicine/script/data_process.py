@@ -386,8 +386,8 @@ class DataProcess(object):
             find_medicines.extend([Medicine.get(name=m) for m in mFinds])
             for aFind in aFinds:
                 alias = Alias.get(name=aFind)
-                medicine = Medicine.query.get(alias.medicine_id)
-                find_medicines.append(medicine)
+                a_medicine = Medicine.query.get(alias.medicine_id)
+                find_medicines.append(a_medicine)
             if re.search('(又法)|(又一法)|(又方)|(又散)|(一法)|(一方)', row['附方']):
                 if last_compound is not None:
                     row['附方'] = last_compound
