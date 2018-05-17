@@ -152,9 +152,11 @@ class DataProcess(object):
         # df.to_csv(file_path, encoding='utf-8-sig')
 
     def process_data(self):
-        self.process_data_by_medicine_and_alias()
-        self.process_data_by_property()
-        self.process_data_by_compound()
+        # self.process_data_by_medicine_and_alias()
+        # self.process_data_by_property()
+        # self.process_data_by_compound()
+        # self.process_data_by_compound_()
+        self.update_compound_group()
 
     @staticmethod
     def process_data_by_medicine_and_alias():
@@ -397,6 +399,48 @@ class DataProcess(object):
             compound = Compound(name=row['附方'], description=row['內文'], source=medicine.name)
             compound.medicine.extend(set(find_medicines))
             db.session.add(compound)
+        db.session.commit()
+
+    @staticmethod
+    def process_data_by_compound_():
+        medicine_names = set([medicine.name for medicine in Medicine.query.all() if len(medicine.name) > 1])
+        alias_names = set([alias.name for alias in Alias.query.all() if len(alias.name) > 1])
+        join_mName = '|'.join(medicine_names)
+        join_aName = '|'.join(alias_names)
+
+        compounds = Compound.query.all()
+        for compound in compounds:
+            content = re.sub('\s', '', compound.description)
+            match = re.search('（\w{0,3}《?\w{2,8}》?）|《\w{2,8}》', content)
+            if match:
+                content = re.sub('（\w{0,3}《?\w{2,8}》?）|《\w{2,8}》', '', content)
+            mFinds = re.findall('(' + join_mName + ')', content)
+            aFinds = re.findall('(' + join_aName + ')', content)
+
+            find_medicines = list()
+            medicine = Medicine.get(name=compound.source)
+            find_medicines.append(medicine)
+            find_medicines.extend([Medicine.get(name=m) for m in mFinds])
+            for aFind in aFinds:
+                alias = Alias.get(name=aFind)
+                a_medicine = Medicine.query.get(alias.medicine_id)
+                find_medicines.append(a_medicine)
+            compound.medicine.extend(set(find_medicines))
+            db.session.add(compound)
+        db.session.commit()
+
+    @staticmethod
+    def update_compound_group():
+        import numpy as np
+        from medicine.analysis.cluster import Cluster
+        c = Cluster(8)
+
+        for group in range(c.fit.n_clusters):
+            ids = np.where(c.fit.labels_ == group)[0] + 1
+            for compound_id in ids:
+                compound = Compound.query.get(compound_id)
+                compound.group = group
+                db.session.add(compound)
         db.session.commit()
 
 

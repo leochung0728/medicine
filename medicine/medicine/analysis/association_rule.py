@@ -40,6 +40,5 @@ class Apriori(object):
 
 if __name__ == '__main__':
     apriori = Apriori()
-    print(len(apriori.basket))
-    # apriori.generate_rules()
-    # print(apriori.rules.to_json(lines=True, orient='records'))
+    apriori.generate_rules()
+    print(apriori.rules.to_json(lines=True, orient='records'))
