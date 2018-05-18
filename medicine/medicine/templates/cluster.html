@@ -26,7 +26,7 @@
     <div style="padding-bottom: 20px">
         <form id='form' class="form-inline">
             <label>KMeans : </label>
-            <select class="form-control" name="k">
+            <select class="form-control" name="k" id="k">
                 <option value="2">2</option>
                 <option value="3">3</option>
                 <option value="4">4</option>
@@ -38,10 +38,10 @@
                 <option value="10">10</option>
             </select>
 
-            <label>Group : </label>
-            <input type="number" step="1" min="0" max="10" value="0" class="form-control" name="g">
+            <label style="margin-left: 20px">Group : </label>
+            <select class="form-control" name="g" id="g"></select>
 
-            <button type='button' class="btn btn-primary" style="margin-left: 10px" onclick="submitForm('#form')">
+            <button type='button' class="btn btn-primary" style="margin-left: 30px" onclick="submitForm('#form')">
                 Submit
             </button>
         </form>
@@ -179,6 +179,8 @@
             type: 'POST',
             data: $('#form').serialize(),
         }).done(function (result) {
+            select_val = $("#k").find(":selected").text()
+            make_select_option('#g', 0, select_val)
             table_data = JSON.parse(JSON.parse(result)['table_data'])
             chart_data = JSON.parse(result)['chart_data'].slice(0, 20)
             table = $('#table').DataTable({
@@ -194,7 +196,22 @@
             alert('fail.')
         })
 
+        $("#k").on('change', function () {
+            select_val = $("#k").find(":selected").text()
+            make_select_option('#g', 0, select_val)
+        })
+
     })
+
+
+    function make_select_option(select_tag, start_val, end_val) {
+        start_val = typeof start_val !== 'undefined' ? start_val : 0
+        end_val = typeof end_val !== 'undefined' ? end_val : 10
+        $(select_tag + ' option').remove()
+        for (var i = start_val; i < end_val; i++) {
+            $(select_tag).append($("<option></option>").attr("value", i).text(i))
+        }
+    }
 
     function drawChart(data) {
         coption = jQuery.extend(true, {}, coption_origin)
@@ -209,7 +226,6 @@
             type: 'POST',
             data: $(form_id).serialize(),
         }).done(function (result) {
-            console.log(JSON.parse(JSON.parse(result)['table_data']))
             table_data = JSON.parse(JSON.parse(result)['table_data'])
             chart_data = JSON.parse(result)['chart_data'].slice(0, 20)
 
