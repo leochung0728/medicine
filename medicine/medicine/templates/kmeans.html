@@ -1,0 +1,245 @@
+{% extends "layout.html" %}
+{% block title %}index{% endblock %}
+
+{% block head %}
+{{ super() }}
+<link rel="stylesheet" href="{{ url_for('static', filename='vendor/datatables-plugins/dataTables.bootstrap.css') }}"
+      type="text/css">
+<link rel="stylesheet" href="{{ url_for('static', filename='vendor/datatables-responsive/dataTables.responsive.css') }}"
+      type="text/css">
+
+<script src="{{ url_for('static', filename='vendor/bootstrap/js/bootstrap.min.js') }}"></script>
+<script src="{{ url_for('static', filename='vendor/datatables/js/jquery.dataTables.min.js') }}"></script>
+<script src="{{ url_for('static', filename='vendor/datatables-plugins/dataTables.bootstrap.min.js') }}"></script>
+<script src="{{ url_for('static', filename='vendor/datatables-responsive/dataTables.responsive.js') }}"></script>
+<script src="{{ url_for('static', filename='vendor/Highcharts-6.1.0/code/highcharts.js') }}"></script>
+{% endblock %}
+
+{% block content %}
+<div id="page-wrapper">
+    <div class="row">
+        <div class="col-lg-12">
+            <h2 class="page-header">Analysis</h2>
+        </div>
+        <!-- /.col-lg-12 -->
+    </div>
+    <div style="padding-bottom: 20px">
+        <form id='form' class="form-inline">
+            <label>KMeans : </label>
+            <select class="form-control" name="k" id="k">
+                <option value="2">2</option>
+                <option value="3">3</option>
+                <option value="4">4</option>
+                <option value="5">5</option>
+                <option value="6">6</option>
+                <option value="7">7</option>
+                <option value="8" selected>8</option>
+                <option value="9">9</option>
+                <option value="10">10</option>
+            </select>
+
+            <label style="margin-left: 20px">Group : </label>
+            <select class="form-control" name="g" id="g"></select>
+
+            <button type='button' class="btn btn-primary" style="margin-left: 30px" onclick="submitForm('#form')">
+                Submit
+            </button>
+        </form>
+    </div>
+    <div class="row">
+        <div id="exTab1" class="col-lg-12">
+            <div class="panel with-nav-tabs panel-default">
+                <div class="panel-heading" style="padding: 0px">
+                    <ul class="nav nav-tabs">
+                        <li class="active col-lg-2" style="padding: 0px">
+                            <a href="#1a" data-toggle="tab">Table</a>
+                        </li>
+                        <li class="col-lg-2" style="padding: 0px">
+                            <a href="#2a" data-toggle="tab">Chart</a>
+                        </li>
+                    </ul>
+                </div>
+                <div class="panel-body">
+                    <div class="tab-content" style="margin: 20px">
+                        <div class="tab-pane active" id="1a">
+                            <table id="table" class="table table-striped table-bordered table-hover">
+                                <thead class="thead-dark">
+                                <tr>
+                                    <th>name</th>
+                                    <th>medicines</th>
+                                    <th>group</th>
+                                </tr>
+                                </thead>
+                            </table>
+                        </div>
+                        <div class="tab-pane" id="2a">
+                            <div id="main" style="height: 400px"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script type="text/javascript">
+    var coption_origin = {
+        chart: {
+            marginTop: 140,
+            renderTo: 'main',
+            events: {
+                load: function () {
+                    $(".highcharts-data-labels g").attr("opacity", 1)
+                }
+            },
+            style: {
+                fontFamily: '"Microsoft JhengHei", sans-serif'
+            }
+        },
+        title: {
+            text: '出現頻率'
+        },
+        subtitle: {},
+        xAxis: {
+            title: {
+                text: '中藥材',
+            }
+        },
+        yAxis: {
+            min: 0,
+            title: {
+                text: '出現次數',
+            }
+        },
+        tooltip: {
+            valueSuffix: ''
+        },
+        plotOptions: {
+            bar: {
+                groupPadding: 0,
+                dataLabels: {
+                    enabled: true,
+                    allowOverlap: true,
+                }
+            },
+            column: {
+                groupPadding: 0,
+                dataLabels: {
+                    enabled: true,
+                    allowOverlap: true
+                }
+            },
+            pie: {
+                shadow: false,
+                showInLegend: true,
+                dataLabels: {
+                    enabled: true,
+                    format: '<b>{point.name}</b>: {point.percentage:.1f} %'
+                }
+            }
+        },
+        legend: {
+            layout: 'horizontal',
+            align: 'center',
+            verticalAlign: 'top',
+            y: 50,
+            floating: false,
+            borderWidth: 1,
+            backgroundColor: ((Highcharts.theme && Highcharts.theme.legendBackgroundColor) || '#FFFFFF'),
+            shadow: true,
+            reversed: true,
+            maxHeight: 63,
+        },
+        credits: {
+            enabled: false
+        },
+        lang: {
+            printButtonTitle: "print",
+            downloadButtonTitle: "download"
+        },
+        navigation: {
+            buttonOptions: {
+                theme: {
+                    'stroke-width': 1,
+                    stroke: 'silver'
+                }
+            }
+        },
+        series: [{
+            data: []
+        }]
+    }
+    var coption
+    var chart
+    var table
+
+    $(document).ready(function () {
+        $.ajax({
+            url: '/analysis/kmeans/ajax',
+            type: 'POST',
+            data: $('#form').serialize(),
+        }).done(function (result) {
+            select_val = $("#k").find(":selected").text()
+            make_select_option('#g', 0, select_val)
+            table_data = JSON.parse(JSON.parse(result)['table_data'])
+            chart_data = JSON.parse(result)['chart_data'].slice(0, 20)
+            table = $('#table').DataTable({
+                data: table_data,
+                columns: [
+                    {title: "name"},
+                    {title: "medicines"},
+                    {title: "group"},
+                ]
+            })
+            drawChart(chart_data)
+        }).fail(function () {
+            alert('fail.')
+        })
+
+        $("#k").on('change', function () {
+            select_val = $("#k").find(":selected").text()
+            make_select_option('#g', 0, select_val)
+        })
+
+    })
+
+
+    function make_select_option(select_tag, start_val, end_val) {
+        start_val = typeof start_val !== 'undefined' ? start_val : 0
+        end_val = typeof end_val !== 'undefined' ? end_val : 10
+        $(select_tag + ' option').remove()
+        for (var i = start_val; i < end_val; i++) {
+            $(select_tag).append($("<option></option>").attr("value", i).text(i))
+        }
+    }
+
+    function drawChart(data) {
+        coption = jQuery.extend(true, {}, coption_origin)
+        coption.chart.type = 'column'
+        coption.series = [{'data': data}]
+        chart = new Highcharts.Chart(coption)
+    }
+
+    function submitForm(form_id) {
+        $.ajax({
+            url: '/analysis/kmeans/ajax',
+            type: 'POST',
+            data: $(form_id).serialize(),
+        }).done(function (result) {
+            table_data = JSON.parse(JSON.parse(result)['table_data'])
+            chart_data = JSON.parse(result)['chart_data'].slice(0, 20)
+
+            table.clear()
+            table.rows.add(table_data)
+            table.draw()
+
+            drawChart(chart_data)
+        }).fail(function () {
+            alert('fail.')
+        })
+    }
+
+
+</script>
+
+{% endblock %}
