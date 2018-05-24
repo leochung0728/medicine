@@ -153,10 +153,10 @@ class DataProcess(object):
 
     def process_data(self):
         # self.process_data_by_medicine_and_alias()
-        # self.process_data_by_property()
+        self.process_data_by_property()
         # self.process_data_by_compound()
         # self.process_data_by_compound_()
-        self.update_compound_group()
+        # self.update_compound_group()
 
     @staticmethod
     def process_data_by_medicine_and_alias():
@@ -224,6 +224,7 @@ class DataProcess(object):
         medicine_dict = OrderedDict()
         medicine_temp = None
         for index, row in data.iterrows():
+            has_record = False
             property_dict = dict.fromkeys(property_keys, 0)
             title = re.sub('\s', '', row['標題'])
             position = re.sub('\s', '', row['部位']) if not pd.isnull(row['部位']) else ''
@@ -240,6 +241,7 @@ class DataProcess(object):
                 content = match.group()
 
             if re.search('同', content):
+                has_record = True
                 something = ''
                 if re.search('(?:同([^。]))|(?:(.)同)', content):
                     for search in re.search('(?:同([^。]))|(?:(.)同)', content).groups():
@@ -262,6 +264,7 @@ class DataProcess(object):
                         property_dict = list(medicine_dict.items())[len(medicine_dict) - 1][1]
 
             if re.search('熱', content):
+                has_record = True
                 text = re.search('(大熱)|(熟熱)|(熱)|(微熱)', content).group()
                 if text == '大熱':
                     property_dict['hot'] = 3
@@ -271,6 +274,7 @@ class DataProcess(object):
                     property_dict['hot'] = 1
 
             if re.search('溫', content):
+                has_record = True
                 text = re.search('(大溫)|(溫)|(小溫)|(微溫)', content).group()
                 if text == '大溫':
                     property_dict['warm'] = 3
@@ -280,6 +284,7 @@ class DataProcess(object):
                     property_dict['warm'] = 1
 
             if re.search('冷|涼', content):
+                has_record = True
                 text = re.search('(冷利)|(至冷)|(冷)|(小冷)|(涼)', content).group()
                 if text == '冷利' or text == '至冷':
                     property_dict['cool'] = 3
@@ -289,6 +294,7 @@ class DataProcess(object):
                     property_dict['cool'] = 1
 
             if re.search('寒', content):
+                has_record = True
                 text = re.search('(大寒)|(寒)|(小寒)|(微寒)', content).group()
                 if text == '大寒':
                     property_dict['cold'] = 3
@@ -298,9 +304,11 @@ class DataProcess(object):
                     property_dict['cold'] = 1
 
             if re.search('平', content):
+                has_record = True
                 property_dict['neutral'] = 2
 
             if re.search('酸', content):
+                has_record = True
                 text = re.search('(并酸)|(酸)|(微酸)', content).group()
                 if text == '并酸':
                     property_dict['sour'] = 3
@@ -310,6 +318,7 @@ class DataProcess(object):
                     property_dict['sour'] = 1
 
             if re.search('甘', content):
+                has_record = True
                 text = re.search('(并甘)|(甘)|(微甘)', content).group()
                 if text == '并甘':
                     property_dict['sweet'] = 3
@@ -319,6 +328,7 @@ class DataProcess(object):
                     property_dict['sweet'] = 3
 
             if re.search('苦', content):
+                has_record = True
                 text = re.search('(苦)|(微苦)|(小苦)', content).group()
                 if text == '苦':
                     property_dict['bitter'] = 2
@@ -326,6 +336,7 @@ class DataProcess(object):
                     property_dict['bitter'] = 1
 
             if re.search('鹹', content):
+                has_record = True
                 text = re.search('(鹹)|(微鹹)', content).group()
                 if text == '鹹':
                     property_dict['salty'] = 2
@@ -333,6 +344,7 @@ class DataProcess(object):
                     property_dict['salty'] = 1
 
             if re.search('辛', content):
+                has_record = True
                 text = re.search('(辛美)|(辛)|(微辛)', content).group()
                 if text == '辛美' or text == '辛':
                     property_dict['pungent'] = 2
@@ -340,6 +352,7 @@ class DataProcess(object):
                     property_dict['pungent'] = 1
 
             if re.search('毒', content):
+                has_record = True
                 text = re.search('(大毒)|(大有毒)|(有毒)|(微毒)|(小毒)|(無毒)', content).group()
                 if text == '大毒' or text == '大有毒':
                     property_dict['poison'] = 3
@@ -348,6 +361,8 @@ class DataProcess(object):
                 elif text == '微毒' or text == '小毒':
                     property_dict['poison'] = 1
 
+            if not has_record:
+                property_dict = dict.fromkeys(property_keys, None)
             medicine_dict[position] = property_dict
             property = Property.get(position, medicine_id=m.id)
             if property is None:
