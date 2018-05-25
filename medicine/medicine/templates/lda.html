@@ -128,7 +128,11 @@
             }
         },
         tooltip: {
-            valueSuffix: ''
+            useHTML: true,
+            headerFormat: '<small>{point.key}</small><table>',
+            pointFormat: '<tr><td>出現次數: </td>' +
+            '<td style="text-align: right"><b>{point.y} 次</b></td></tr>',
+            footerFormat: '</table>',
         },
         plotOptions: {
             bar: {
